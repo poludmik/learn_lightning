@@ -1,0 +1,7 @@
+venv/
+checkpoints/
+lightning_logs/
+my_callback_checkpoints/
+MNIST/
+.idea/
+__pycache__/
