@@ -82,9 +82,8 @@ class LitAutoEncoder(L.LightningModule):
 
 checkpoint_callback = ModelCheckpoint(
     dirpath="my_callback_checkpoints",
-    # monitor="global_step",
-    filename="sample-mnist-{epoch:02d}-{step:02d}",
-    every_n_train_steps=200,
+    filename="sample-mnist-{epoch:1d}-{step:02d}",
+    every_n_train_steps=30000,
     save_top_k=-1  # keep all checkpoints!
 )
 
