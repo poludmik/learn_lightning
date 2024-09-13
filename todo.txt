@@ -1,0 +1,6 @@
+Validation step every n steps
+Wandb logging of train and validation loss, lr
+DataLoader num_workers - number of threads to parallelize the workload, how to load huge datasets
+data modules
+-----------------
+

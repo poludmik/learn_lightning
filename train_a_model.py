@@ -1,5 +1,8 @@
 import os
+from datetime import datetime
+
 import torch
+import wandb
 from torch import nn
 import torch.nn.functional as F
 from torchvision import transforms
@@ -8,7 +11,11 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader, Dataset
 import torch.utils.data as data
 import lightning as L
+from lightning.pytorch.callbacks import ModelSummary, DeviceStatsMonitor
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch import seed_everything
 
+seed_everything(228)
 
 class MyDataset(Dataset):
     def __init__(self, data):
@@ -39,21 +46,32 @@ class Decoder(nn.Module):
         return self.l1(x)
 
 class LitAutoEncoder(L.LightningModule):
-    def __init__(self, encoder, decoder):
+    def __init__(self, encoder, decoder, lr=0.5e-3, *args, **kwargs):
         super().__init__()
-        self.save_hyperparameters() # save the hyperparameters to the checkpoint object
         self.encoder = encoder
         self.decoder = decoder
+        self.lr = lr
+        self.save_hyperparameters() # save the hyperparameters to the checkpoint object and to wandb (logs arguments to the __init__ method)
+        self.total_loss = 0
 
     def training_step(self, batch, batch_idx):
-        # training_step defines the train loop.
         x, _ = batch
         x = x.view(x.size(0), -1)
         z = self.encoder(x)
         x_hat = self.decoder(z)
         loss = F.mse_loss(x_hat, x)
-        # print(f'loss: {loss}')
-        # self.log("global_step", self.global_step)
+
+        # Accumulate loss and count steps
+        self.total_loss += loss.item()
+
+        # Log average loss every 100 steps
+        if self.global_step % 100 == 0:
+            avg_loss = self.total_loss / 100
+            self.log("train_loss_avg", avg_loss, prog_bar=True)
+            self.total_loss = 0  # Reset after logging
+
+        self.log("train_loss", loss)
+
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -72,11 +90,13 @@ class LitAutoEncoder(L.LightningModule):
         z = self.encoder(x)
         x_hat = self.decoder(z)
         val_loss = F.mse_loss(x_hat, x)
-        self.log("val_loss", val_loss)
+        # print(f'val_loss: {val_loss}')
+        self.log("val_loss", val_loss, prog_bar=True) # automatically averages across the validation step
+        return val_loss
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.5e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
 
@@ -87,6 +107,8 @@ checkpoint_callback = ModelCheckpoint(
     save_top_k=-1  # keep all checkpoints!
 )
 
+current_time = datetime.now().strftime("%d.%m._%H:%M")
+wandb_logger = WandbLogger(project="learn-lightning", name="autoencoder at " + current_time)
 
 dataset = MNIST(os.getcwd(), download=True, transform=transforms.ToTensor())
 test_set = MNIST(root="MNIST", download=True, train=False, transform=transforms.ToTensor())
@@ -96,46 +118,56 @@ train_set_size = int(len(dataset) * 0.8)
 valid_set_size = len(dataset) - train_set_size
 
 # split the train set into two
-seed = torch.Generator().manual_seed(42)
-train_set, valid_set = data.random_split(dataset, [train_set_size, valid_set_size], generator=seed)
+train_set, valid_set = data.random_split(dataset, [train_set_size, valid_set_size])
 
-train_loader = DataLoader(dataset)
-print(next(iter(train_loader)))
+train_loader = DataLoader(dataset, num_workers=11)
+# print(next(iter(train_loader)))
 
-valid_loader = DataLoader(valid_set)
+valid_loader = DataLoader(valid_set, num_workers=11)
 
 
 # model
 autoencoder = LitAutoEncoder(Encoder(), Decoder())
-autoencoder.load_state_dict(torch.load('model.pth'))
+# autoencoder.load_state_dict(torch.load('model.pth'))
+wandb_logger.watch(autoencoder, log="parameters")
 
 # train model
 trainer = L.Trainer(
-    max_epochs=1,
-    callbacks=[checkpoint_callback]
+    max_epochs=5,
+    callbacks=[checkpoint_callback, ModelSummary(max_depth=-1), DeviceStatsMonitor()], # to ensure that you’re using the full capacity of your accelerator (GPU/TPU/HPU).
+    # fast_dev_run=5, # run only 5 batches to check if the whole code is working (train, val, test). will disable tuner, checkpoint callbacks, early stopping callbacks, loggers
+    limit_train_batches=0.05, # run only 5% of the training data
+    limit_val_batches=0.05, # run only 10% of the validation data
+    num_sanity_val_steps=2, # run 2 steps of validation before training to check it is working
+    # profiler="simple",
+    # log_every_n_steps=10, # chatgpt generated
+    # logger=True,
+    val_check_interval=500, # every 500 steps, check validation. Or set to 0.25 to check every 25% of 1 epoch
+    logger=wandb_logger,
 )
 trainer.fit(model=autoencoder, train_dataloaders=train_loader, val_dataloaders=valid_loader)
-trainer.test(autoencoder, dataloaders=DataLoader(test_set))
+trainer.test(autoencoder, dataloaders=DataLoader(test_set, num_workers=11))
 
 # save model
 torch.save(autoencoder.state_dict(), 'model.pth')
 
 # load model
-autoencoder.load_state_dict(torch.load('model.pth'))
+autoencoder.load_state_dict(torch.load('model.pth', weights_only=True))
 
 # predict
 autoencoder.eval()
 x = torch.randn(1, 28, 28)
 x = x.view(x.size(0), -1)
 z = autoencoder.encoder(x)
-print(z.shape) # torch.Size([1, 3])
+# print(z.shape) # torch.Size([1, 3])
 # z = torch.randn(1, 3)
 x_hat = autoencoder.decoder(z)
-print(x_hat.shape) # torch.Size([1, 784])
+# print(x_hat.shape) # torch.Size([1, 784])
 
 # show the image
 import matplotlib.pyplot as plt
 x_hat = x_hat.view(1, 28, 28)
 x_hat = x_hat.detach().numpy()
-plt.imshow(x_hat[0])
-plt.show()
+# plt.imshow(x_hat[0])
+# plt.show()
+

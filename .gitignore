@@ -6,3 +6,5 @@ MNIST/
 .idea/
 __pycache__/
 model_bert.pth
+my_bert_checkpoints/
+wandb/
