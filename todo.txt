@@ -4,3 +4,5 @@ DataLoader num_workers - number of threads to parallelize the workload, how to l
 data modules
 -----------------
 
+from lightning.pytorch.callbacks import RichProgressBar
+try to fully fine-tune some tiny llm on one GPU
