@@ -26,7 +26,7 @@ def tokenize_and_save(input_file, output_file, tokenizer):
     arr.tofile(output_file)
 
 # Tokenize and save the dataset
-tokenize_and_save('raw_text_dataset.jsonl', 'binary_tokenized_dataset.bin', tokenizer)
+tokenize_and_save('small_text_dataset.jsonl', 'binary_tokenized_dataset.bin', tokenizer)
 
 
 class TokenizedDataset(Dataset):
@@ -44,9 +44,9 @@ class TokenizedDataset(Dataset):
         y = torch.from_numpy(self.data[idx*self.block_size+1:idx*self.block_size+1+self.block_size].astype(np.uint32))
         # pad the last sequence if it's shorter than block_size
         if y.size(0) < self.block_size:
-            pad = torch.zeros(self.block_size - y.size(0), dtype=torch.long)
+            pad = torch.zeros(self.block_size - y.size(0), dtype=torch.uint32)
             y = torch.cat([y, pad])
-        print({'input_ids': x, 'labels': y})
+        # print({'input_ids': x, 'labels': y})
         return {'input_ids': x, 'labels': y}
 
 from torch.utils.data import DataLoader
@@ -58,7 +58,7 @@ batch_size = 3
 
 # Choose Dataset type
 dataset = TokenizedDataset(data_file, block_size)
-print(len(dataset))  # Print the length of the dataset
+print("Dataset_Length:", len(dataset), end="\n\n")  # Print the length of the dataset
 
 # Create DataLoader
 dataloader = DataLoader(
@@ -70,5 +70,8 @@ dataloader = DataLoader(
 )
 
 for idx, batch in enumerate(dataloader):
-    print(idx)
-    print(batch)
+    for i in range(batch["input_ids"].shape[0]):
+        print(tokenizer.decode(batch["input_ids"][i], skip_special_tokens=False))
+        print(tokenizer.decode(batch["labels"][i], skip_special_tokens=False))
+        print()
+    

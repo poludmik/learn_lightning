@@ -8,3 +8,4 @@ __pycache__/
 model_bert.pth
 my_bert_checkpoints/
 wandb/
+model_gpt2.pth
