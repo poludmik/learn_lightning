@@ -9,3 +9,5 @@ model_bert.pth
 my_bert_checkpoints/
 wandb/
 model_gpt2.pth
+large_text_dataset/czech_news_dataset_v2.jsonl
+large_text_dataset/czech_news_dataset_v2.bin

@@ -5,6 +5,7 @@ from transformers import GPT2Tokenizer, GPT2Model
 tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
 model = GPT2Model.from_pretrained('gpt2')
 from torch.utils.data import Dataset
+import tqdm
 
 ### Another way to do it without using the datasets library:
 import json
@@ -14,19 +15,25 @@ def read_jsonl(file_path):
         for line in f:
             yield json.loads(line)
 
-def tokenize_and_save(input_file, output_file, tokenizer):
+def tokenize_and_save(input_file, output_file, tokenizer, max_length=1024, stride=512):
     token_ids = []
-    for obj in read_jsonl(input_file):
-        text = obj['text']  # Adjust the key according to your JSON structure
-        tokens = tokenizer.encode(text, add_special_tokens=True)
-        token_ids.extend(tokens)
-    # Convert token_ids to a NumPy array
-    arr = np.array(token_ids, dtype=np.uint32)  # Use np.uint32 if vocab size > 65535
-    # Save to a binary file
+    for j, obj in tqdm.tqdm(enumerate(read_jsonl(input_file))):
+        text = obj['text']
+        encodings = tokenizer(text, truncation=False, add_special_tokens=True)
+        input_ids = encodings['input_ids']
+        for i in range(0, len(input_ids), stride):
+            chunk = input_ids[i:i + max_length]
+            if len(chunk) < max_length:
+                break
+            token_ids.extend(chunk)
+        
+        if j > 50000:
+            break
+    arr = np.array(token_ids, dtype=np.uint32)
     arr.tofile(output_file)
 
 # Tokenize and save the dataset
-tokenize_and_save('small_text_dataset.jsonl', 'binary_tokenized_dataset.bin', tokenizer)
+tokenize_and_save('czech_news_dataset_v2.jsonl', 'czech_news_dataset_v2.bin', tokenizer)
 
 
 class TokenizedDataset(Dataset):
