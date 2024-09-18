@@ -1,9 +1,10 @@
+import math
 from datasets import load_dataset
 import torch
 import numpy as np
-from transformers import GPT2Tokenizer, GPT2Model
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-model = GPT2Model.from_pretrained('gpt2')
+from transformers import AutoModelForCausalLM, AutoTokenizer
+tokenizer = AutoTokenizer.from_pretrained('gpt2')
+model = AutoModelForCausalLM.from_pretrained('gpt2')
 from torch.utils.data import Dataset
 import tqdm
 
@@ -27,13 +28,11 @@ def tokenize_and_save(input_file, output_file, tokenizer, max_length=1024, strid
                 break
             token_ids.extend(chunk)
         
-        if j > 50000:
-            break
     arr = np.array(token_ids, dtype=np.uint32)
     arr.tofile(output_file)
 
 # Tokenize and save the dataset
-tokenize_and_save('czech_news_dataset_v2.jsonl', 'czech_news_dataset_v2.bin', tokenizer)
+# tokenize_and_save('czech_news_dataset_v2.jsonl', 'czech_news_dataset_full_v2.bin', tokenizer)
 
 
 class TokenizedDataset(Dataset):
@@ -41,7 +40,7 @@ class TokenizedDataset(Dataset):
         self.data_file = data_file
         self.block_size = block_size
         self.data = np.memmap(self.data_file, dtype=np.uint32, mode='r')
-        self.data_len = len(self.data) // self.block_size 
+        self.data_len = math.ceil(len(self.data) / self.block_size)
     
     def __len__(self):
         return self.data_len
@@ -59,9 +58,9 @@ class TokenizedDataset(Dataset):
 from torch.utils.data import DataLoader
 
 # Parameters
-data_file = 'binary_tokenized_dataset.bin'  # Or 'tokenized_data.npy'
-block_size = 5  # Adjust based on model's context length
-batch_size = 3
+data_file = 'czech_news_dataset_full_v2.bin'  # Or 'tokenized_data.npy'
+block_size = 50  # Adjust based on model's context length
+batch_size = 1
 
 # Choose Dataset type
 dataset = TokenizedDataset(data_file, block_size)
@@ -72,8 +71,7 @@ dataloader = DataLoader(
     dataset,
     batch_size=batch_size,
     num_workers=1,
-    # For IterableDataset, don't set shuffle=True
-    # For Dataset, you can set shuffle=True
+    shuffle=True,
 )
 
 for idx, batch in enumerate(dataloader):
@@ -81,4 +79,4 @@ for idx, batch in enumerate(dataloader):
         print(tokenizer.decode(batch["input_ids"][i], skip_special_tokens=False))
         print(tokenizer.decode(batch["labels"][i], skip_special_tokens=False))
         print()
-    
+    break

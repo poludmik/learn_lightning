@@ -11,3 +11,7 @@ wandb/
 model_gpt2.pth
 large_text_dataset/czech_news_dataset_v2.jsonl
 large_text_dataset/czech_news_dataset_v2.bin
+my_gpt2_checkpoints/
+model_gpt2_cznews.pth
+model_gpt2_cznews_ctnd.pth
+large_text_dataset/czech_news_dataset_full_v2.bin
