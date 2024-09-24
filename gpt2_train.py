@@ -64,11 +64,17 @@ dataloader = DataLoader(
 )
 
 class GPT2Finetuner(L.LightningModule):
-    def __init__(self, warmup_steps, total_steps):
+    def __init__(self, warmup_steps=0, total_steps=0):
         super().__init__()
+
+        if warmup_steps == 0:
+            print("\033[91m" + "Warning: warmup_steps is set to 0." + "\033[0m")
+
+        if total_steps == 0:
+            print("\033[91m" + "Warning: total_steps is set to 0." + "\033[0m")
+
         self.save_hyperparameters()  # Saves hyperparameters for checkpointing
 
-        # Initialize the GPT-2 model
         self.gpt2 = AutoModelForCausalLM.from_pretrained("openai-community/gpt2")
         self.gpt2.train()
 
@@ -119,12 +125,9 @@ wandb_logger = WandbLogger(project="learn-lightning",
                            name="GPT-2 at " + current_time, 
                            )
 
-
-# Calculate total_steps and warmup_steps
 total_steps = max_epochs * len(dataloader)
 warmup_steps = int(0.01 * total_steps)  # 10% of total steps
 
-# Initialize the model with warmup_steps and total_steps
 model = GPT2Finetuner(warmup_steps=warmup_steps, total_steps=total_steps)
 wandb_logger.watch(model, log="parameters", log_graph=False)
 
@@ -135,11 +138,10 @@ checkpoint_path = "lightning_logs/version_1706648/checkpoints/epoch=0-step=50791
 checkpoint_callback = ModelCheckpoint(
         dirpath="my_gpt2_checkpoints",
         filename="cp-{epoch:1d}-{step:02d}",
-        every_n_train_steps=2000,
+        every_n_train_steps=20000,
         save_top_k=-1  # keep all checkpoints!
     )
 
-# create your own theme!
 progress_bar = RichProgressBar(
     theme=RichProgressBarTheme(
         description="green_yellow",
@@ -160,23 +162,27 @@ trainer = L.Trainer(
     max_epochs=max_epochs,
     # Add any additional Trainer arguments here (e.g., gpus, callbacks)
     logger=wandb_logger,
-    callbacks=[checkpoint_callback, progress_bar]
+    callbacks=[checkpoint_callback, 
+            #    progress_bar # doesn't work in slurm output files
+            ],
 )
 
 # Start training
-trainer.fit(
-    model,
-    train_dataloaders=dataloader,
-    # Optionally, add validation dataloaders if available
-)
-
-# Save the fine-tuned model
-torch.save(model.state_dict(), 'model_gpt2_cznews_ctnd.pth')
+# trainer.fit(
+#     model,
+#     train_dataloaders=dataloader,
+#     # Optionally, add validation dataloaders if available
+# )
+# torch.save(model.state_dict(), 'model_gpt2_cznews_ctnd.pth')
 
 
-# # run model for prediction:
+# # # run model for prediction:
 # model = GPT2Finetuner()
-# model.load_state_dict(torch.load('model_gpt2_cznews.pth', weights_only=True))
+
+# # load from the checkpoint "my_gpt2_checkpoints/cp-epoch=0-step=4000.ckpt"
+# model.load_state_dict(torch.load('my_gpt2_checkpoints/cp-epoch=0-step=4000.ckpt')['state_dict'])
+
+# # model.load_state_dict(torch.load('model_gpt2_cznews.pth', weights_only=True))
 # model.eval()
 # input_text = """Na otázku odpověděl: """
 # input_ids = tokenizer.encode(input_text, return_tensors='pt')
