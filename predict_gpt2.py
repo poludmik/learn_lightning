@@ -76,7 +76,7 @@ model.load_state_dict(torch.load('my_gpt2_checkpoints/cp-epoch=0-step=80000.ckpt
 
 # model.load_state_dict(torch.load('model_gpt2_cznews.pth', weights_only=True))
 model.eval()
-input_text = """1 = jedna, 2 = dva, 3 = tři, 4 = čtýři, 5"""
+input_text = """Hasičské sbory dobrovolníků na """
 input_ids = tokenizer.encode(input_text, return_tensors='pt')
 
 attention_mask = torch.ones(input_ids.shape, dtype=torch.long)

@@ -163,7 +163,7 @@ trainer = L.Trainer(
     # Add any additional Trainer arguments here (e.g., gpus, callbacks)
     logger=wandb_logger,
     callbacks=[checkpoint_callback, 
-            #    progress_bar # doesn't work in slurm output files
+               progress_bar # doesn't work in slurm output files
             ],
 )
 
