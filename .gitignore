@@ -12,6 +12,8 @@ model_gpt2.pth
 large_text_dataset/czech_news_dataset_v2.jsonl
 large_text_dataset/czech_news_dataset_v2.bin
 my_gpt2_checkpoints/
-model_gpt2_cznews.pth
-model_gpt2_cznews_ctnd.pth
+pth_models/
 large_text_dataset/czech_news_dataset_full_v2.bin
+hpc_ckpt_*
+litdata/
+my_gpt2_big_checkpoints/

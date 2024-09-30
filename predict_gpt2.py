@@ -72,23 +72,47 @@ tokenizer = AutoTokenizer.from_pretrained('openai-community/gpt2')
 model = GPT2Finetuner()
 
 # load from the checkpoint
-model.load_state_dict(torch.load('my_gpt2_checkpoints/cp-epoch=0-step=80000.ckpt', weights_only=True)['state_dict'])
+# model.load_state_dict(torch.load('my_gpt2_big_checkpoints/cp-epoch=0-step=130000.ckpt', weights_only=True)['state_dict'])
+model.load_state_dict(torch.load('pth_models/model_gpt2_big.pth', weights_only=True))
 
 # model.load_state_dict(torch.load('model_gpt2_cznews.pth', weights_only=True))
 model.eval()
-input_text = """Hasičské sbory dobrovolníků na """
+# input_text = """Německý kancléř Gerhard"""
+input_text = """Kontext: \"Klub Sparta vyhral klub Slavia Praha 3:1\".
+Otázka: \"Kdo vyhral zápas Sparta nebo Slavia?\".
+Odpověď: \"Sparta\".
+
+Kontext: \"Největší město České republiky je Praha\".
+Otázka: \"Jaké je největší město České republiky?\".
+Odpověď: \"Praha\".
+
+Kontext: \"Nejvyšší hora Sněžka je z České republiky\".
+Otázka: \"Jaká je nejvyšší hora České republiky?\".
+Odpověď: \"Sněžka\".
+
+Kontext: \"Prezident Německa je Frank-Walter Steinmeier\".
+Otázka: \"Kdo je prezidentem Německa?\".
+Odpověď: \"Steinmeier\".
+
+Kontext: \"Brno je druhé největší město České republiky\".
+Otázka: \"Jaké je 2. největší město ČR?\".
+Odpověď: \""""
 input_ids = tokenizer.encode(input_text, return_tensors='pt')
 
 attention_mask = torch.ones(input_ids.shape, dtype=torch.long)
 
+# generate output and ignore the generated special tokens
 output = model.gpt2.generate(input_ids, attention_mask=attention_mask, 
-                             max_new_tokens=100, 
+                             max_new_tokens=100,
                              num_return_sequences=1, 
-                             no_repeat_ngram_size=2, 
-                             top_k=50,
-                            #  top_p=0.95, 
-                            #  do_sample=False,
-                            #  temperature=0.7
-                             )
-print("\033[94m>>>>>>\033[0m")
-print(tokenizer.decode(output[0], skip_special_tokens=False))
+                             no_repeat_ngram_size=5, 
+                            #  top_k=50,
+                            #  top_p=0.95,
+                            #  do_sample=True,
+                            #  temperature=0.9,
+                             eos_token_id=None
+                            )
+
+for i in range(0, len(output)):
+    print("\033[94m>>>>>>\033[0m")
+    print(tokenizer.decode(output[i], skip_special_tokens=False))

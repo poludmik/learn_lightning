@@ -14,54 +14,54 @@ import wandb
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks.progress.rich_progress import RichProgressBarTheme
 from lightning.pytorch.callbacks.progress import RichProgressBar
+# from litdata import StreamingDataset, StreamingDataLoader, TokensLoader
+# from tqdm import tqdm
+from lightning.pytorch.plugins.environments import SLURMEnvironment
+import signal
+from BigDataModule import TokenizedDataset, MyDataModule
+
+L.seed_everything(228, workers=True)
 
 
 # Initialize tokenizer and model
 tokenizer = AutoTokenizer.from_pretrained('gpt2')
 model = AutoModelForCausalLM.from_pretrained('gpt2')
 
-class TokenizedDataset(Dataset):
-    def __init__(self, data_file, block_size):
-        self.data_file = data_file
-        self.block_size = block_size
-        self.data = np.memmap(self.data_file, dtype=np.uint32, mode='r')
-        self.data_len = math.ceil(len(self.data) / self.block_size)
-    
-    def __len__(self):
-        return self.data_len
-    
-    def __getitem__(self, idx):
-        x = torch.from_numpy(
-            self.data[idx*self.block_size : idx*self.block_size + self.block_size]
-            .astype(np.uint32)
-        ).to(torch.long)
-        y = torch.from_numpy(
-            self.data[idx*self.block_size + 1 : idx*self.block_size + 1 + self.block_size]
-            .astype(np.uint32)
-        ).to(torch.long)
-        # Pad the last sequence if it's shorter than block_size
-        if y.size(0) < self.block_size:
-            pad = torch.zeros(self.block_size - y.size(0), dtype=torch.long)
-            y = torch.cat([y, pad])
-        return {'input_ids': x, 'labels': y}
-
 # Parameters
-data_file = 'large_text_dataset/czech_news_dataset_full_v2.bin'  # Update path as needed
+# data_file = 'large_text_dataset/czech_news_dataset_full_v2.bin'  # Update path as needed
+data_file = "../dataset-playground/azure_data/czech_llm_data/czech-llm-dataset-complete/merged_all_files.bin"
 block_size = 1024  # Adjust based on model's context length
-batch_size = 16
+batch_size = 20
+num_workers = 15
 max_epochs = 1  # Set desired number of epochs
 
-# Create Dataset and DataLoader
-dataset = TokenizedDataset(data_file, block_size)
-
-print("Dataset_Length:", len(dataset), end="\n\n")  # Print the length of the dataset
-
-dataloader = DataLoader(
-    dataset,
+# Initialize the DataModule
+data_module = MyDataModule(
+    data_file=data_file,
+    block_size=block_size,
     batch_size=batch_size,
-    num_workers=1,
-    shuffle=True,
+    num_workers=num_workers,
 )
+
+data_module.setup()
+
+# print("Dataset_Length:", len(dataset), end="\n\n")  # total number of instances
+
+# dataloader = DataLoader(
+#     dataset,
+#     batch_size=batch_size,
+#     num_workers=15,
+#     shuffle=True,
+# )
+
+# dataset = StreamingDataset(
+#   input_dir=f"./litdata/optimized_dataset_mikhail",
+#   item_loader=TokensLoader(block_size=400),
+#   shuffle=True,
+#   drop_last=True,
+# )
+# dataloader = StreamingDataLoader(dataset, batch_size=8, pin_memory=True, num_workers=os.cpu_count())
+
 
 class GPT2Finetuner(L.LightningModule):
     def __init__(self, warmup_steps=0, total_steps=0):
@@ -82,6 +82,8 @@ class GPT2Finetuner(L.LightningModule):
         targets = batch["labels"]
         outputs = self.gpt2(batch["input_ids"])
 
+        print("Batch idx:", batch_idx) # to track the progress if resumed from a checkpoint (progress bar will show from 0)
+
         # Compute loss using chunked cross-entropy for efficiency
         loss = litgpt.utils.chunked_cross_entropy(outputs.logits, targets)
         self.log("train_loss", loss, prog_bar=True)
@@ -89,6 +91,13 @@ class GPT2Finetuner(L.LightningModule):
         current_lr = self.optimizers().param_groups[0]['lr']
         self.log("current_lr", current_lr)
 
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        targets = batch["labels"]
+        outputs = self.gpt2(batch["input_ids"])
+        loss = litgpt.utils.chunked_cross_entropy(outputs.logits, targets)
+        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
         return loss
 
     def configure_optimizers(self):
@@ -121,24 +130,24 @@ class GPT2Finetuner(L.LightningModule):
         }
 
 current_time = datetime.now().strftime("%d.%m._%H:%M")
-wandb_logger = WandbLogger(project="learn-lightning", 
-                           name="GPT-2 at " + current_time, 
-                           )
+wandb_logger = WandbLogger(project="learn-lightning", name="GPT-2 at " + current_time)
 
-total_steps = max_epochs * len(dataloader)
-warmup_steps = int(0.01 * total_steps)  # 10% of total steps
+# Calculate total steps
+num_training_batches = len(data_module.train_dataloader())
+total_steps = max_epochs * num_training_batches
+warmup_steps = int(0.01 * total_steps)  # 1% of total steps
 
 model = GPT2Finetuner(warmup_steps=warmup_steps, total_steps=total_steps)
 wandb_logger.watch(model, log="parameters", log_graph=False)
 
-checkpoint_path = "lightning_logs/version_1706648/checkpoints/epoch=0-step=50791.ckpt"
+# checkpoint_path = "lightning_logs/version_1706648/checkpoints/epoch=0-step=50791.ckpt"
 # model = GPT2Finetuner.load_from_checkpoint(checkpoint_path, warmup_steps=warmup_steps, total_steps=total_steps)
 # model.train()
 
 checkpoint_callback = ModelCheckpoint(
-        dirpath="my_gpt2_checkpoints",
+        dirpath="my_gpt2_big_checkpoints",
         filename="cp-{epoch:1d}-{step:02d}",
-        every_n_train_steps=20000,
+        every_n_train_steps=10000,
         save_top_k=-1  # keep all checkpoints!
     )
 
@@ -163,17 +172,25 @@ trainer = L.Trainer(
     # Add any additional Trainer arguments here (e.g., gpus, callbacks)
     logger=wandb_logger,
     callbacks=[checkpoint_callback, 
-               progress_bar # doesn't work in slurm output files
+            #    progress_bar # doesn't work in slurm output files
             ],
+    devices=7,
+    strategy="ddp",
+    val_check_interval=2000, # every N steps, check validation. Or set to 0.25 to check every 25% of 1 epoch
+    # limit_train_batches=7.42597946385483e-04,
+    # overfit_batches=0.00001,
+    deterministic=True,
+    plugins=[SLURMEnvironment(requeue_signal=signal.SIGHUP)]
 )
 
-# Start training
-# trainer.fit(
-#     model,
-#     train_dataloaders=dataloader,
-#     # Optionally, add validation dataloaders if available
-# )
-# torch.save(model.state_dict(), 'model_gpt2_cznews_ctnd.pth')
+#Start training
+trainer.fit(
+    model,
+    # train_dataloaders=dataloader,
+    datamodule=data_module,
+    # ckpt_path="my_gpt2_big_checkpoints/cp-epoch=0-step=100.ckpt", # if resuming with 1 epoch limit, it will start from the number of batches it has already seen and stop when it sees everything. that is, now it will take total_num_batches - already_seen_batches steps and end.
+)
+torch.save(model.state_dict(), 'pth_models/model_gpt2_big.pth')
 
 
 # # # run model for prediction:
@@ -184,7 +201,7 @@ trainer = L.Trainer(
 
 # # model.load_state_dict(torch.load('model_gpt2_cznews.pth', weights_only=True))
 # model.eval()
-# input_text = """Na otázku odpověděl: """
+# input_text = """Národní muzeum se nachází """
 # input_ids = tokenizer.encode(input_text, return_tensors='pt')
 
 # attention_mask = torch.ones(input_ids.shape, dtype=torch.long)

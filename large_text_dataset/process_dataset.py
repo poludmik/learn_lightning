@@ -32,7 +32,7 @@ def tokenize_and_save(input_file, output_file, tokenizer, max_length=1024, strid
     arr.tofile(output_file)
 
 # Tokenize and save the dataset
-# tokenize_and_save('czech_news_dataset_v2.jsonl', 'czech_news_dataset_full_v2.bin', tokenizer)
+tokenize_and_save('czech_news_dataset_v2.jsonl', 'czech_news_dataset_full_v2.bin', tokenizer)
 
 
 class TokenizedDataset(Dataset):
