@@ -19,6 +19,7 @@ from lightning.pytorch.callbacks.progress import RichProgressBar
 from lightning.pytorch.plugins.environments import SLURMEnvironment
 import signal
 from BigDataModule import TokenizedDataset, MyDataModule
+from deepspeed.ops.adam import FusedAdam
 
 
 class Gemma2Finetuner(L.LightningModule):
@@ -34,14 +35,19 @@ class Gemma2Finetuner(L.LightningModule):
         self.save_hyperparameters()  # Saves hyperparameters for checkpointing
         self.gemma2 = None
 
-    def configure_model(self): # efficient way to load the model
-        if self.gemma2 is not None:
-            return
         self.gemma2 = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b",
                                                             attn_implementation='eager',
-                                                            torch_dtype=torch.bfloat16,
                                                             )
         self.gemma2.train()
+
+
+    # def configure_model(self): # efficient way to load the model (not for deepspeed)
+    #     if self.gemma2 is not None:
+    #         return
+    #     self.gemma2 = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b",
+    #                                                         attn_implementation='eager',
+    #                                                         )
+    #     self.gemma2.train()
 
     def training_step(self, batch, batch_idx):
         targets = batch["labels"]
@@ -70,7 +76,7 @@ class Gemma2Finetuner(L.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=3e-5)
+        optimizer = FusedAdam(self.parameters(), lr=3e-5)
 
         total_steps = self.hparams.total_steps
         warmup_steps = self.hparams.warmup_steps

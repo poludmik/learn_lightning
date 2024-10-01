@@ -28,7 +28,7 @@ max_epochs = 1
 # Initialize the DataModule
 data_module = MyDataModule(
     data_file=data_file,
-    block_size=1024,
+    block_size=2048,
     batch_size=1,
     num_workers=1,
 )
@@ -45,7 +45,7 @@ model = Gemma2Finetuner(warmup_steps=warmup_steps, total_steps=total_steps)
 checkpoint_callback = ModelCheckpoint(
         dirpath="my_gemma2_cswiki_checkpoints",
         filename="cp-{epoch:1d}-{step:02d}",
-        every_n_train_steps=10,
+        every_n_train_steps=50,
         save_top_k=-1  # keep all checkpoints!
     )
 
@@ -92,11 +92,13 @@ trainer = L.Trainer(
             ],
     num_nodes=2,
     devices=8,
-    strategy='fsdp', # TODO: try simple "fsdp"
-    val_check_interval=10, # every N steps, check validation. Or set to 0.25 to check every 25% of 1 epoch
-    limit_train_batches=0.001,
+    # strategy='fsdp', # TODO: try simple "fsdp"
+    strategy="deepspeed_stage_3", 
+    precision=16,
+    val_check_interval=100, # every N steps, check validation. Or set to 0.25 to check every 25% of 1 epoch
+    # limit_train_batches=0.001,
     # limit_val_batches=0.1,
-    # overfit_batches=0.00001,
+    # overfit_batches=0.001,
     deterministic=True,
     plugins=[SLURMEnvironment(requeue_signal=signal.SIGHUP)]
 )
