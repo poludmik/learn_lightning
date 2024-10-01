@@ -47,6 +47,7 @@ class MyDataModule(L.LightningDataModule):
 
         # Calculate split sizes
         train_size = int(0.999 * len(full_dataset))
+        # train_size = int(len(full_dataset) - 1)
         val_size = len(full_dataset) - train_size
 
         # Split the dataset into training and validation sets

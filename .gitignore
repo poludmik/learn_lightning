@@ -17,3 +17,7 @@ large_text_dataset/czech_news_dataset_full_v2.bin
 hpc_ckpt_*
 litdata/
 my_gpt2_big_checkpoints/
+run_gemma2_job.sh
+run_gemma2_job_adam.sh
+slurm_outputs/
+my_gemma2_cswiki_checkpoints/
