@@ -20,6 +20,7 @@ from lightning.pytorch.plugins.environments import SLURMEnvironment
 import signal
 from BigDataModule import TokenizedDataset, MyDataModule
 from deepspeed.ops.adam import FusedAdam
+from torchmetrics.text import Perplexity
 
 
 class Gemma2Finetuner(L.LightningModule):
@@ -59,6 +60,19 @@ class Gemma2Finetuner(L.LightningModule):
         outputs = self.gemma2(batch["input_ids"])
         loss = litgpt.utils.chunked_cross_entropy(outputs.logits, targets)
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
+
+        pad_token_id = 0 # From Gemma 2 tokenizer config
+        logits = outputs.logits
+        perplexity = Perplexity(ignore_index=None).to(torch.device('cuda'))
+        score = perplexity(preds=logits, target=targets)
+        self.log("val_perplexity_pad", score, prog_bar=True, sync_dist=True)
+        
+        perplexity = Perplexity(ignore_index=pad_token_id).to(torch.device('cuda'))
+        score = perplexity(preds=logits, target=targets)
+        self.log("val_perplexity", score, prog_bar=True, sync_dist=True)
+        self.log("val_loss_exp", loss.exp(), prog_bar=True, sync_dist=True)
+        
+
         return loss
 
     def configure_optimizers(self):

@@ -1,10 +1,10 @@
 #!/usr/bin/bash
 #SBATCH --job-name gpt2_train
-#SBATCH --account OPEN-29-45
+#SBATCH --account OPEN-31-52
 #SBATCH --partition qgpu
 #SBATCH --gpus 7
 #SBATCH --nodes 1
-#SBATCH --time=2-00:00:00 # 2 days, 0 hours, 0 minutes, 0 seconds 
+#SBATCH --time=0-00:06:00 # 2 days, 0 hours, 0 minutes, 0 seconds 
 
 # 200 seconds before training ends send SIGHUP signal for the lightning module to save the model and resubmit the job
 #SBATCH --signal=SIGHUP@200

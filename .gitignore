@@ -21,3 +21,16 @@ run_gemma2_job.sh
 run_gemma2_job_adam.sh
 slurm_outputs/
 my_gemma2_cswiki_checkpoints/
+adam_gemma2_cswiki_checkpoints/
+learn_lightning/
+slurm_outputs_a/
+better_code/gemma-2-2b-checkpoints/
+gemma2_train_adam.py
+llama7B_train_adam_tst.py
+better_code/run_training.sh
+better_code/wandb/
+better_code/slurm_outputs
+better_code/gemma-2-2b-checkpoints/
+better_code/pth_models
+better_code/hpc_ckpt_*
+better_code/__pycache__/

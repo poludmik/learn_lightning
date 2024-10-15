@@ -1,20 +1,16 @@
 from datetime import datetime
-from datasets import load_dataset
 import torch
 import torch.nn as nn
-from transformers import AutoModelForCausalLM
 import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint
-import wandb
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.strategies import FSDPStrategy
 from lightning.pytorch.callbacks.progress.rich_progress import RichProgressBarTheme
 from lightning.pytorch.callbacks.progress import RichProgressBar
 from lightning.pytorch.plugins.environments import SLURMEnvironment
 import signal
-from BigDataModule import TokenizedDataset, MyDataModule
+from BigDataModule import MyDataModule
 from GemmaModule import Gemma2Finetuner
-import warnings
 
 L.seed_everything(228, workers=True)
 
@@ -36,8 +32,10 @@ data_module.setup()
 
 # Calculate total steps
 num_training_batches = len(data_module.train_dataloader())
+print(f"Number of training batches: {num_training_batches}")
 total_steps = max_epochs * num_training_batches
-warmup_steps = int(0.01 * total_steps)  # 1% of total steps
+warmup_steps = int(0.001 * total_steps)  # 1% of total steps
+print(f"Total steps: {total_steps}, Warmup steps: {warmup_steps}")
 
 # Initialize the trained model
 model = Gemma2Finetuner(warmup_steps=warmup_steps, total_steps=total_steps)
@@ -45,7 +43,7 @@ model = Gemma2Finetuner(warmup_steps=warmup_steps, total_steps=total_steps)
 checkpoint_callback = ModelCheckpoint(
         dirpath="my_gemma2_cswiki_checkpoints",
         filename="cp-{epoch:1d}-{step:02d}",
-        every_n_train_steps=50,
+        every_n_train_steps=2000,
         save_top_k=-1  # keep all checkpoints!
     )
 
@@ -94,9 +92,9 @@ trainer = L.Trainer(
     devices=8,
     # strategy='fsdp', # TODO: try simple "fsdp"
     strategy="deepspeed_stage_3", 
-    precision=16,
+    precision="bf16-mixed",
     val_check_interval=100, # every N steps, check validation. Or set to 0.25 to check every 25% of 1 epoch
-    # limit_train_batches=0.001,
+    # limit_train_batches=0.004,
     # limit_val_batches=0.1,
     # overfit_batches=0.001,
     deterministic=True,
@@ -107,6 +105,7 @@ trainer = L.Trainer(
 trainer.fit(
     model,
     datamodule=data_module,
+    # ckpt_path="my_gemma2_cswiki_checkpoints/cp-epoch=0-step=2000.ckpt",
     # ckpt_path="my_gpt2_big_checkpoints/cp-epoch=0-step=100.ckpt", # if resuming with 1 epoch limit, it will start from the number of batches it has already seen and stop when it sees everything. that is, now it will take total_num_batches - already_seen_batches steps and end.
 )
 trainer.print(torch.cuda.memory_summary())

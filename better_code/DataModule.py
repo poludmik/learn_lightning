@@ -6,6 +6,10 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import lightning as L
 import numpy as np
+import random
+
+random.seed(228)
+torch.manual_seed(228) # to ensure reproducibility for the dataloader
 
 class TokenizedDataset(Dataset):
     def __init__(self, data_file, block_size):
@@ -32,19 +36,22 @@ class TokenizedDataset(Dataset):
             pad_size = self.block_size - x.size(0)
             pad = torch.zeros(pad_size, dtype=torch.long)
             x = torch.cat([x, pad], dim=0)
+            # print red:
+            print("\033[91m" + f"PADDED x!" + "\033[0m")
 
         # Pad y if necessary
         if y.size(0) < self.block_size:
             pad_size = self.block_size - y.size(0)
             pad = torch.zeros(pad_size, dtype=torch.long)
             y = torch.cat([y, pad], dim=0)
+            print("\033[91m" + f"PADDED y!" + "\033[0m")
         
         attention_mask = (x != 0).long()
 
         return {'input_ids': x, 'labels': y, 'attention_mask': attention_mask}
 
 
-class MyDataModule(L.LightningDataModule):
+class Gemma2DataModule(L.LightningDataModule):
     def __init__(self, data_file, block_size, batch_size, num_workers):
         super().__init__()
         self.data_file = data_file

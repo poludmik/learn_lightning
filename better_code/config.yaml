@@ -1,0 +1,24 @@
+model_name: "google/gemma-2-2b"
+checkpoint_dir: "gemma-2-2b-checkpoints"
+init_pth_model: "../checkpoints/google/gemma-2-2b/lit_model.pth"
+# checkpoint_path: "gemma-2-2b-checkpoints/cp-epoch=0-step=150.ckpt"
+
+training_data_path: "/mnt/proj2/open-29-45/poludmik/czech-llm/dataset-playground/azure_data/czech_llm_data/czech-llm-dataset-complete/all_except_cc_and_syn.bin"
+
+block_size: 8192
+accumulate_batch_size: 1
+micro_batch_size: 1
+
+max_epochs: 1 # 36k steps
+val_interval: 1000
+save_interval: 5000
+log_interval: 10
+
+peak_learning_rate: 2e-5
+weight_decay: 0.01
+beta1: 0.9
+beta2: 0.98
+cosine_decay: True
+warmup_iters: 4000
+lr_decay_iters: 36000
+min_lr: 6e-6
